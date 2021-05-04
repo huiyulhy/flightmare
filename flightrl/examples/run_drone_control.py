@@ -74,7 +74,8 @@ def main():
     max_ep_length = env.max_episode_steps
 
     if env.num_envs == 1:
-        object_density_fractions = np.ones([env.num_envs], dtype=np.float32)
+        object_density_fractions = np.zeros([env.num_envs], dtype=np.float32)
+        #object_density_fractions = np.ones([env.num_envs], dtype=np.float32)
     else:
         object_density_fractions = np.linspace(0.0, 1.0, num=env.num_envs)
 
@@ -104,7 +105,7 @@ def main():
         # 1000000000 is 2000 iterations and so
         # 2000000000 is 4000 iterations.
         logger.configure(folder=saver.data_dir)
-        n_iter = 500
+        n_iter = 10
         callbacks = CustomCallback()
         planner = HighLevelPlanner(num_runs= n_iter,
                                         num_goals_per_run = 1,
@@ -117,9 +118,11 @@ def main():
             print("current goal: " + str(current_goal))
             model.learn(total_timesteps=int(50000), callback=callbacks)
             planner.to_next_run()
-        
-        model.save(saver.data_dir)
 
+            if(i%100 == 0):
+                model.save(saver.data_dir)
+
+        
     # # Testing mode with a trained weight
     else:
         model = PPO.load(args.weight)

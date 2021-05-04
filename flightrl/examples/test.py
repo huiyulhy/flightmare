@@ -60,7 +60,7 @@ class CustomCallback(BaseCallback):
 
         :return: (bool) If the callback returns False, training is aborted early.
         """
-        self.locals['new_obs'][0, 0:3] = np.reshape(self.goal, self.locals['new_obs'][0, 0:3].shape) - self.locals['new_obs'][0, 0:3] 
+        self.locals['new_obs'][0, 0:3] = self.locals['new_obs'][0, 0:3] - np.reshape(self.goal, self.locals['new_obs'][0, 0:3].shape)
         return True
 
     def _on_rollout_end(self) -> None:

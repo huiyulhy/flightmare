@@ -46,7 +46,7 @@ class PPOAgent(ObstacleAvoidanceAgent):
   
   def getActions(self, obs, done, images, current_goal_position): 
     # substraction should be for all environments
-    obs[:,0:3] =  np.reshape(current_goal_position, obs[:, 0:3].shape) - obs[:,0:3]
+    obs[:,0:3] = obs[:,0:3] - np.reshape(current_goal_position, obs[:, 0:3].shape)
     obs[:,12:] = np.zeros(obs[:,12:].shape)
     print("model state " + str(obs))
     act, _ = self.model.predict(obs, deterministic=True)
