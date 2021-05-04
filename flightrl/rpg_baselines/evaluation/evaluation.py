@@ -120,7 +120,8 @@ def main():
         current_goal , _, _ = high_level_planner.get_current_goal(drone_position=drone_pos, num_run=int(n_roll%num_rollouts_per_density))
 
         # Single episode until termination.
-        while not (done or done_from_high_level_planner or (ep_len >= max_ep_length)):
+        while not (done or (ep_len >= max_ep_length)):
+
             actions = obstacle_avoidance_agent.getActions(obs, done, images, current_goal)
 
             if ep_len == 5:
