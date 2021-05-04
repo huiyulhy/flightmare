@@ -26,10 +26,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Installing catkin tools
 RUN apt-get update && apt-get install -y python3-setuptools && pip3 install catkin-tools 
 
-RUN /bin/bash cd /home && git clone https://github.com/uzh-rpg/flightmare.git \
-    && echo "export FLIGHTMARE_PATH=/home/flightmare" >> ~/.bashrc
-    && source ~/.bashrc
+RUN pip3 install --upgrade setuptools
+RUN pip3 install --upgrade pip
 
-RUN /bin/bash cd /home/flightmare/flightlib && pip3 install . \
-    && cd /home/flightmare/flightrl && pip3 install . \
-    && 
+RUN pip3 install jupyter
+
+WORKDIR "/root"
+
+RUN git clone -b linn https://github.com/yuelinn/flightmare.git 
+
+RUN echo "export FLIGHTMARE_PATH=/root/flightmare" >> /root/.bashrc
+RUN  pip3 install scikit-build==0.11.1
+
+WORKDIR "/root/flightmare/flightlib"
+ENV FLIGHTMARE_PATH /root/flightmare
+RUN pip3 install .
+
+WORKDIR "/root/flightmare/flightrl"
+RUN pip3 install .
+
+RUN pip3 install tensorflow-gpu==1.14
+
+WORKDIR "/root"
