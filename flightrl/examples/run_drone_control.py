@@ -59,7 +59,7 @@ class RandGoalsCallback(BaseCallback):
         print("Setting rand goals for training...")
         self.waypt_gap_m=waypt_gap_m # max distance between the gen goal n the robot at time of gen
         self.goal_tol_m=goal_tol_m # min dist to consider the goal is met
-        self.goal=np.array([5.0, 5.0, 5.0]);
+        self.goal=np.array([5.0, 5.0, 5.0], dtype=np.float32)
 
     def _on_training_start(self) -> None:
         """
@@ -73,7 +73,8 @@ class RandGoalsCallback(BaseCallback):
         using the current policy.
         This event is triggered before collecting new samples.
         """
-        pass
+        new_goal=copy.deepcopy(self.goal)
+        self.training_env.set_goal(new_goal)
 
     def _on_step(self) -> bool:
         """
@@ -91,7 +92,7 @@ class RandGoalsCallback(BaseCallback):
         # check if near goal
         # TODO: check if this is the correct tensor?
         obs_tensor=(self.locals["new_obs"])
-        # print("obs: ", self.locals["new_obs"])
+        print("obs: ", self.locals["new_obs"])
 
 
         # obs_tensor=(self.locals["obs_tensor"]).numpy()
@@ -116,18 +117,19 @@ class RandGoalsCallback(BaseCallback):
             new_goal[2]=np.random.uniform(0, 7.0)
             print("new goal ", new_goal)
 
-            self.goal=new_goal
+            self.goal=np.array(new_goal, dtype=np.float32)
             # print("new obs: ", self.locals["obs_tensor"])
 
-        new_obs=copy.deepcopy(obs_tensor)
-        new_obs[0,0:3]=self.goal
-        new_obs[0,-3:]=self.goal
-        self.locals["new_obs"]=new_obs
+            # new_obs=copy.deepcopy(obs_tensor)
+            # new_obs[0,-3:]=self.goal
+            # self.locals["new_obs"]=new_obs
+            # self.locals["obs_tensor"]=torch.from_numpy(new_obs)
+            self.training_env.set_goal(self.goal)
 
-        # pdb.set_trace()        
-        self.training_env.set_goal(new_obs)
 
         # self.locals["obs_tensor"]=torch.from_numpy(new_obs)
+        # self.locals["new_obs"]=new_obs
+
         # print("new obs ", self.locals["obs_tensor"])
 
         return True
