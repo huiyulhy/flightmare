@@ -83,6 +83,7 @@ class QuadrotorEnv final : public EnvBase {
   // - auxiliar functions
   bool isTerminalState(Scalar &reward) override;
   bool isTerminalStateUnity(Scalar &reward) override;
+  Scalar isGoalReached(); 
   void addObjectsToUnity(std::shared_ptr<UnityBridge> bridge);
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -109,6 +110,7 @@ class QuadrotorEnv final : public EnvBase {
   Depth_image_mat<quadenv::frame_height, quadenv::frame_width> depth_img_mat_;
   // Define reward for training
   Scalar pos_coeff_, ori_coeff_, lin_vel_coeff_, ang_vel_coeff_, act_coeff_;
+  Scalar goal_dist_; 
 
   // observations and actions (for RL)
   Vector<quadenv::kNObs> quad_obs_;

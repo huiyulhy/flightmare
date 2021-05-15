@@ -4,35 +4,121 @@ from ruamel.yaml import YAML, dump, RoundTripDumper
 #
 import os
 import math
-import argparse
-import numpy as np
-import time
-import sys
-import torch
-import pdb
-import copy
+import gym 
+import numpy as np 
+import torch 
 
 #
-from stable_baselines3.common import logger
-
-#
-from stable_baselines3.ppo.ppo import PPO
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.ppo.ppo import PPO
 
-from rpg_baselines.ppo.ppo2_test import test_model
+#
 import rpg_baselines.common.util as U
 from rpg_baselines.common.high_level_planner import HighLevelPlanner
 from rpg_baselines.envs import vec_env_wrapper as wrapper
-from scipy.spatial.transform import Rotation 
-
-#
 from flightgym import QuadrotorEnv_v1
-from test import CustomCallback
+
+# check that system is using cuda 
+use_cuda = torch.cuda.is_available()
+device   = torch.device("cuda" if use_cuda else "cpu")
+
+print(use_cuda)
+print(device)
+
+class errorCallback(BaseCallback):
+    """
+    A error callback class that derives from ``BaseCallback``.
+    This class of error callbacks are designed to be used when the 
+    training is performed on error instead of actual position 
+
+    :param verbose: (int) Verbosity level 0: not output 1: info 2: debug
+    """
+    def __init__(self, verbose=0):
+        super(errorCallback, self).__init__(verbose)
+        # Those variables will be accessible in the callback
+        # (they are defined in the base class)
+        # The RL model
+        # self.model = None  # type: BaseAlgorithm
+        # An alias for self.model.get_env(), the environment used for training
+        # self.training_env = None  # type: Union[gym.Env, VecEnv, None]
+        # Number of time the callback was called
+        # self.n_calls = 0  # type: int
+        # self.num_timesteps = 0  # type: int
+        # local and global variables
+        # self.locals = None  # type: Dict[str, Any]
+        # self.globals = None  # type: Dict[str, Any]
+        # The logger object, used to report things in the terminal
+        # self.logger = None  # stable_baselines3.common.logger
+        # # Sometimes, for event callback, it is useful
+        # # to have access to the parent object
+        # self.parent = None  # type: Optional[BaseCallback]
+        self.goal = np.zeros((3,1))
+        self.high_level_planner = HighLevelPlanner(num_runs= 1,
+                                    num_goals_per_run = 1,
+                                    world_box = [-15, -15, 0, 15, 15, 8], 
+                                    min_distance_between_consecutive_goals = 10,
+                                    switch_goal_distance = 3)
+        self.possible_goals = np.array([[1.0, 0.0, 4.0], 
+                                [0.0, 0.0, 3.0], 
+                                [0.0, 1.0, 4.0],
+                                [0.0, -1.0, 4.0], 
+                                [1.0, 0.0, 4.0], 
+                                [0.0, 0.0, 5.0]],
+                                dtype=np.float32)
+
+    def processObs(self, obs, current_goal) -> None: 
+        """
+        This method is the preprocessing pipeline of the observation
+        before passing observations into the PPO agent for training
+        """
+        new_obs = obs.copy()
+        new_obs[:,0:3] = new_obs[:, 0:3] - np.reshape(current_goal, new_obs[:, 0:3].shape)
+        new_obs[:,12:] = np.zeros(new_obs[:,12:].shape)
+        return new_obs        
+
+    def _on_rollout_start(self) -> None:  
+        """
+        This method is called before the first rollout starts 
+        """
+        #randint = np.random.randint(0, self.possible_goals.shape[0])
+        #self.goal = self.possible_goals[randint]
+        self.goal = self.high_level_planner.draw_random_position()
+        self.goal = np.multiply(self.goal, [0.2, 0.2, 0.5])
+        self.goal = self.goal + np.array([0.0, 0.0, 2.0])
+        self.goal = np.array(self.goal, dtype=np.float32)
+        self.training_env.set_goal(self.goal)
+        print("current goal " + str(self.goal))
+        pass
+
+    def _on_step(self) -> bool:
+        """
+        This method will be called by the model after each call to `env.step()`.
+
+        For child callback (of an `EventCallback`), this will be called
+        when the event is triggered.
+
+        :return: (bool) If the callback returns False, training is aborted early.
+        """
+        self.locals['new_obs'] = self.processObs(self.locals['new_obs'], self.goal)
+        #self.locals['new_obs'][0, 12:] = self.goal
+        #self.locals['new_obs'][0, 0:3] = self.locals['new_obs'][0, 0:3] - np.reshape(self.goal, self.locals['new_obs'][0, 0:3].shape)
+        return True
+
+    def _on_rollout_end(self) -> None:
+        """
+        This event is triggered before updating the policy.
+        """
+        print("rollout ended: callback entered")
+        self.high_level_planner.reset()
+
+    def set_goal(self, goal): 
+        self.goal = goal
 
 class RandGoalsCallback(BaseCallback):
     """
     A custom callback that derives from ``BaseCallback``.
+    This class is designed to provide a new random goal 
+    during callback for training
 
     :param verbose: (int) Verbosity level 0: not output 1: info 2: debug
     """
@@ -145,106 +231,3 @@ class RandGoalsCallback(BaseCallback):
         This event is triggered before exiting the `learn()` method.
         """
         pass
-
-
-
-
-def configure_random_seed(seed, env=None):
-    if env is not None:
-        env.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-
-
-def parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--train', type=int, default=1,
-                        help="To train new model or simply test pre-trained model")
-    parser.add_argument('--render', type=int, default=1,
-                        help="Enable Unity Render")
-    parser.add_argument('--save_dir', type=str, default=os.path.dirname(os.path.realpath(__file__)),
-                        help="Directory where to save the checkpoints and training metrics")
-    parser.add_argument('--seed', type=int, default=0,
-                        help="Random seed")
-    parser.add_argument('-w', '--weight', type=str, default='./saved/quadrotor_env.zip',
-                        help='trained weight path')
-    return parser
-
-
-def main():
-    args = parser().parse_args()
-    cfg = YAML().load(open(os.environ["FLIGHTMARE_PATH"] +
-                           "/flightlib/configs/vec_env.yaml", 'r'))
-    if not args.train:
-        cfg["env"]["num_envs"] = 1
-        cfg["env"]["num_threads"] = 1
-
-    if args.render:
-        cfg["env"]["render"] = "yes"
-    else:
-        cfg["env"]["render"] = "no"
-
-    env = wrapper.FlightEnvVec(QuadrotorEnv_v1(
-        dump(cfg, Dumper=RoundTripDumper), False))
-    if args.render:
-        connectedToUnity = False 
-        while not connectedToUnity:
-            connectedToUnity = env.connectUnity()             
-            if not connectedToUnity:  
-                print("Couldn't connect to unity, will try another time.")
-    
-    print("env.num_envs : ", env.num_envs)
-
-    max_ep_length = env.max_episode_steps
-
-    # FIXME: no obstacles for now
-    object_density_fractions = np.zeros([env.num_envs], dtype=np.float32)
-    # if env.num_envs == 1:
-    #     object_density_fractions = np.ones([env.num_envs], dtype=np.float32)
-    # else:
-    #     object_density_fractions = np.linspace(0.0, 1.0, num=env.num_envs)
-
-    env.set_objects_densities(object_density_fractions = object_density_fractions)   
-    env.reset()
-    
-    time.sleep(2.5)    
-    # set random seed
-    configure_random_seed(args.seed, env=env)
-
-    #
-    if args.train:
-        # save the configuration and other files
-        rsg_root = os.path.dirname(os.path.abspath(__file__))
-        log_dir = rsg_root + '/saved'
-        saver = U.ConfigurationSaver(log_dir=log_dir)
-        model = PPO('MlpPolicy', env, verbose=2,
-                    tensorboard_log=saver.data_dir)
-
-        # tensorboard
-        # Make sure that your chrome browser is already on.
-        #U.TensorboardLauncher(saver.data_dir + '/PPO2_1')
-
-        # PPO run
-        # Originally the total timestep is 5 x 10^8
-        # 10 zeros for nupdates to be 4000
-        # 1000000000 is 2000 iterations and so
-        # 2000000000 is 4000 iterations.
-        logger.configure(folder=saver.data_dir)
-        # Save a checkpoint every 1000 steps
-        checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=saver.data_dir+'/weights/', name_prefix='w_time_')
-        # TODO: make callback that saves only if the returns have improved
-
-        randgoalscallback=RandGoalsCallback()
-
-        model.learn(
-            total_timesteps=int(1000000), callback=[randgoalscallback, checkpoint_callback], tb_log_name="test")
-        model.save(saver.data_dir)
-
-    # # Testing mode with a trained weight
-    else:
-        model = PPO.load(args.weight)
-        test_model(env, model, render=args.render)
-
-
-if __name__ == "__main__":
-    main()

@@ -45,10 +45,14 @@ class PPOAgent(ObstacleAvoidanceAgent):
         PPO.load(self.weights)
   
   def getActions(self, obs, done, images, current_goal_position): 
-    # substraction should be for all environments
-    obs[:,0:3] = obs[:,0:3] - np.reshape(current_goal_position, obs[:, 0:3].shape)
-    obs[:,12:] = np.zeros(obs[:,12:].shape)
-    print("model state " + str(obs))
+    #print("model state " + str(obs))
+    obs = self.normalizeObs(obs, current_goal_position)
     act, _ = self.model.predict(obs, deterministic=True)
     return act
 
+  def normalizeObs(self, obs, goal):
+    new_obs = obs.copy()
+    new_obs[:,0:3] = new_obs[:, 0:3] - np.reshape(goal, new_obs[:, 0:3].shape)
+    #new_obs[:, :12] = new_obs[:, :12]/10.0
+    new_obs[:,12:] = np.zeros(new_obs[:,12:].shape)
+    return new_obs

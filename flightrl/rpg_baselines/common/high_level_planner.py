@@ -51,7 +51,20 @@ class HighLevelPlanner():
   def draw_random_position(self):
     random_values = np.random.rand(3)
     random_values[0:2] = random_values[0:2]*2 - 1 # Uniform distribution from -1 and 1
-    return np.multiply(random_values, self.world_box_dim_factors)  
+    return np.multiply(random_values, self.world_box_dim_factors) 
+
+  # generate goals within a box of this distance
+  def scale_goal(self, scaling_factor):
+    for i in range(self.num_runs):
+      for j in range(self.num_goals_per_run):
+        self.goals_matrix[i, j, :] = np.multiply(scaling_factor, self.goals_matrix[i, j, :]) 
+
+  # transpose goals to be centered around this origin
+  def shift_goal_origin(self, new_origin): 
+    for i in range(self.num_runs): 
+      for j in range(self.num_goals_per_run):
+        self.goals_matrix[i, j, :2] = self.goals_matrix[i, j, :2] + np.array(new_origin[:2], dtype = np.float32)
+        self.goals_matrix[i, j, 2] = self.goals_matrix[i, j, 2] + np.float32([2.5])
   
   def get_current_goal(self, drone_position, num_run):
     goal_relative_position = self.goals_matrix[num_run, self.internal_state, :] - drone_position
